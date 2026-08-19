@@ -376,10 +376,16 @@ def _result(path: Path, filename: str, media: str = "application/pdf", extra: di
 def main() -> None:
     import uvicorn
 
+    if hasattr(sys.stdout, "reconfigure"):
+        try:
+            sys.stdout.reconfigure(line_buffering=True)
+        except Exception:
+            pass
+
     SESSIONS.mkdir(exist_ok=True)
     url = f"http://{HOST}:{PORT}"
-    print(f"\n  Bindery is local-only at {url}")
-    print("  Bound to 127.0.0.1 — this PC, no internet, no upload.\n")
+    print(f"\n  Bindery is local-only at {url}", flush=True)
+    print("  Bound to 127.0.0.1 — this PC, no internet, no upload.\n", flush=True)
     threading.Timer(0.8, lambda: webbrowser.open(url)).start()
     uvicorn.run(app, host=HOST, port=PORT, log_level="warning")
 
