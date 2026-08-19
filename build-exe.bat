@@ -8,9 +8,12 @@ if not exist ".venv\Scripts\python.exe" (
   exit /b 1
 )
 
-echo Installing PyInstaller...
+echo Installing build packages...
+".venv\Scripts\python.exe" -m pip install -r requirements.txt
 ".venv\Scripts\python.exe" -m pip install "pyinstaller==6.13.0"
 if errorlevel 1 exit /b 1
+
+".venv\Scripts\python.exe" make_icon.py
 
 echo.
 echo Building Bindery.exe ^(this can take a few minutes^)...
@@ -21,6 +24,8 @@ if errorlevel 1 (
   exit /b 1
 )
 
+copy /Y "HOW-TO-RUN.txt" "dist\Bindery\HOW-TO-RUN.txt" >nul
+
 echo.
 echo Packing a zip you can send to people...
 if exist "dist\Bindery-windows.zip" del "dist\Bindery-windows.zip"
@@ -30,6 +35,7 @@ echo.
 echo Done.
 echo   App folder:  dist\Bindery\Bindery.exe
 echo   Share zip:   dist\Bindery-windows.zip
-echo Recipients unzip anywhere and double-click Bindery.exe. No Python needed.
+echo Recipients unzip the folder and double-click Bindery.exe. It opens as a windowed app.
+echo Keep Bindery.exe next to the _internal folder. No Python needed.
 echo Windows may warn that the file is unsigned. That is normal for an unsigned local app.
 pause

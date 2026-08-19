@@ -5,6 +5,9 @@ datas = [("static", "static")]
 binaries = []
 hiddenimports = [
     "engine",
+    "server",
+    "desktop",
+    "webview",
     "uvicorn.logging",
     "uvicorn.loops",
     "uvicorn.loops.auto",
@@ -17,7 +20,7 @@ hiddenimports = [
     "uvicorn.lifespan.on",
 ]
 
-for pkg in ("pymupdf", "fitz", "pikepdf"):
+for pkg in ("pymupdf", "fitz", "pikepdf", "webview"):
     try:
         pkg_datas, pkg_binaries, pkg_hidden = collect_all(pkg)
         datas += pkg_datas
@@ -27,7 +30,7 @@ for pkg in ("pymupdf", "fitz", "pikepdf"):
         pass
 
 a = Analysis(
-    ["server.py"],
+    ["desktop.py"],
     pathex=[],
     binaries=binaries,
     datas=datas,
@@ -50,12 +53,13 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon="static/bindery.ico",
 )
 
 coll = COLLECT(

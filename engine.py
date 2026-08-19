@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import io
 import re
+import shutil
+import tempfile
 import zipfile
 from pathlib import Path
 
 import fitz
 import pikepdf
+from PIL import Image
 
 RANGE_TOKEN = re.compile(r"^\s*(\d+)\s*(?:-\s*(\d+))?\s*$")
 
@@ -219,14 +223,159 @@ def rotate(path: Path, password: str, indexes: list[int], degrees: int, dest: Pa
         src.close()
 
 
-def compress(path: Path, password: str, dest: Path) -> tuple[int, int]:
+# Gentle → firmer. Stop at the first copy that fits the ceiling.
+# Floor is JPEG ~70 and ~120 DPI so photos stay readable.
+_SIZE_STEPS: list[tuple[int, int | None]] = [
+    (90, None),
+    (82, None),
+    (82, 180),
+    (75, 150),
+    (70, 120),
+]
+
+
+def parse_target_bytes(size: str, unit: str) -> int | None:
+    raw = (size or "").strip()
+    if not raw:
+        return None
+    try:
+        amount = float(raw)
+    except ValueError as exc:
+        raise PdfError("Target size must be a number, for example 2 or 1.5.") from exc
+    if amount <= 0:
+        raise PdfError("Target size must be greater than zero.")
+    kind = (unit or "MB").strip().upper()
+    if kind == "KB":
+        return max(1, int(amount * 1024))
+    if kind == "MB":
+        return max(1, int(amount * 1024 * 1024))
+    raise PdfError("Use KB or MB for the size unit.")
+
+
+def _save_cleaned(doc: fitz.Document, dest: Path) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    doc.save(dest, garbage=4, deflate=True, clean=True, deflate_images=True, deflate_fonts=True)
+
+
+def _image_dpi(page: fitz.Page, xref: int, width: int, height: int) -> float:
+    rects = page.get_image_rects(xref)
+    if not rects:
+        return 0.0
+    best = 0.0
+    for rect in rects:
+        if rect.width < 2 or rect.height < 2:
+            continue
+        best = max(best, width * 72 / rect.width, height * 72 / rect.height)
+    return best
+
+
+def _pixmap_for_jpeg(pix: fitz.Pixmap) -> fitz.Pixmap:
+    if pix.alpha:
+        pix = fitz.Pixmap(pix, 0)
+    if pix.n >= 4:
+        pix = fitz.Pixmap(fitz.csRGB, pix)
+    return pix
+
+
+def _recompress_images(doc: fitz.Document, quality: int, max_dpi: int | None) -> None:
+    seen: set[int] = set()
+    for page in doc:
+        for info in page.get_images(full=True):
+            xref = info[0]
+            if xref in seen:
+                continue
+            seen.add(xref)
+            try:
+                pix = fitz.Pixmap(doc, xref)
+            except Exception:
+                continue
+            if pix.width < 48 or pix.height < 48:
+                continue
+            pix = _pixmap_for_jpeg(pix)
+            width, height = pix.width, pix.height
+            dpi = _image_dpi(page, xref, width, height)
+            if max_dpi and dpi > max_dpi:
+                scale = max_dpi / dpi
+                width = max(48, int(width * scale))
+                height = max(48, int(height * scale))
+            try:
+                original = doc.extract_image(xref)
+                original_len = len(original.get("image") or b"")
+            except Exception:
+                original_len = 0
+            mode = "L" if pix.n == 1 else "RGB"
+            image = Image.frombytes(mode, (pix.width, pix.height), pix.samples)
+            if (width, height) != (pix.width, pix.height):
+                image = image.resize((width, height), Image.Resampling.LANCZOS)
+            buf = io.BytesIO()
+            image.save(buf, format="JPEG", quality=quality, optimize=True, subsampling=0 if quality >= 85 else 2)
+            payload = buf.getvalue()
+            if original_len and len(payload) >= original_len and (width, height) == (pix.width, pix.height):
+                continue
+            try:
+                page.replace_image(xref, stream=payload)
+            except Exception:
+                continue
+
+
+def compress(path: Path, password: str, dest: Path, target_bytes: int | None = None) -> dict:
+    """Shrink a copy. If target_bytes is set, use the gentlest image pass that fits."""
+    before = path.stat().st_size
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    def report(after: int, met: bool, method: str, quality: int | None = None, dpi: int | None = None, note: str = "") -> dict:
+        return {
+            "bytes_before": before,
+            "bytes_after": after,
+            "target_bytes": target_bytes,
+            "met_target": met,
+            "method": method,
+            "jpeg_quality": quality,
+            "max_dpi": dpi,
+            "note": note,
+        }
+
     src = open_doc(path, password)
     try:
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        src.save(dest, garbage=4, deflate=True, clean=True, deflate_images=True, deflate_fonts=True)
+        _save_cleaned(src, dest)
     finally:
         src.close()
-    return path.stat().st_size, dest.stat().st_size
+    after = dest.stat().st_size
+    if after > before:
+        shutil.copyfile(path, dest)
+        after = before
+
+    if target_bytes is None:
+        return report(after, True, "clean")
+    if after <= target_bytes:
+        return report(after, True, "clean")
+
+    best_size = after
+    best_meta: tuple[str, int | None, int | None] = ("clean", None, None)
+    with tempfile.TemporaryDirectory(prefix="bindery-press-") as tmp:
+        tmp_dir = Path(tmp)
+        for quality, dpi in _SIZE_STEPS:
+            trial = tmp_dir / f"q{quality}_{dpi or 'full'}.pdf"
+            doc = open_doc(path, password)
+            try:
+                _recompress_images(doc, quality, dpi)
+                _save_cleaned(doc, trial)
+            finally:
+                doc.close()
+            size = trial.stat().st_size
+            if size < best_size:
+                best_size = size
+                best_meta = ("images", quality, dpi)
+                shutil.copyfile(trial, dest)
+            if size <= target_bytes:
+                shutil.copyfile(trial, dest)
+                return report(size, True, "images", quality, dpi)
+
+    note = (
+        f"Could not reach {target_bytes} bytes without going below JPEG 70 / 120 DPI. "
+        "This is the smallest copy that still stays on the quality floor."
+    )
+    return report(best_size, False, best_meta[0], best_meta[1], best_meta[2], note)
 
 
 def watermark(path: Path, password: str, text: str, dest: Path) -> None:

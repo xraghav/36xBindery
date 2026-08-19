@@ -1,8 +1,9 @@
-"""Bindery — private PDF studio bound to this machine only."""
+"""36x Bindery — 36XFINANCE private PDF studio. Localhost only."""
 
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sys
 import threading
@@ -39,7 +40,18 @@ PORT = 8741
 MAX_BYTES = 280 * 1024 * 1024
 TTL_SECONDS = 4 * 60 * 60
 
-app = FastAPI(title="Bindery", docs_url=None, redoc_url=None, openapi_url=None)
+def _packaged() -> bool:
+    return bool(getattr(sys, "frozen", False))
+
+
+def _asset_stamp() -> str:
+    if _packaged():
+        return "packaged"
+    times = [p.stat().st_mtime_ns for p in STATIC.rglob("*") if p.is_file()]
+    return str(max(times) if times else 0)
+
+
+app = FastAPI(title="36x Bindery", docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 _lock = threading.Lock()
@@ -63,6 +75,8 @@ class RunBody(BaseModel):
     author: str = ""
     subject: str = ""
     keywords: str = ""
+    target_size: str = ""
+    target_unit: str = "MB"
 
 
 class OpenBody(BaseModel):
@@ -104,14 +118,30 @@ def new_out(sid: str, name: str) -> Path:
     return folder / name
 
 
+@app.middleware("http")
+async def _fresh_when_from_source(request, call_next):
+    response = await call_next(request)
+    if not _packaged():
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @app.get("/", response_class=HTMLResponse)
 def home() -> HTMLResponse:
-    return HTMLResponse((STATIC / "index.html").read_text(encoding="utf-8"))
+    html = (STATIC / "index.html").read_text(encoding="utf-8").replace("__ASSET_V__", _asset_stamp())
+    return HTMLResponse(html)
 
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "local_only": True, "host": HOST, "port": PORT}
+    return {
+        "ok": True,
+        "local_only": True,
+        "host": HOST,
+        "port": PORT,
+        "packaged": _packaged(),
+        "app_window": os.environ.get("BINDERY_WINDOW") == "1",
+    }
 
 
 @app.post("/api/session")
@@ -315,8 +345,9 @@ def _run(sid: str, rec: dict, body: RunBody) -> dict:
 
     if tool == "compress":
         dest = new_out(sid, f"{stem}-compact.pdf")
-        before, after = engine.compress(src, password, dest)
-        return _result(dest, dest.name, extra={"bytes_before": before, "bytes_after": after})
+        target = engine.parse_target_bytes(body.target_size, body.target_unit)
+        stats = engine.compress(src, password, dest, target_bytes=target)
+        return _result(dest, dest.name, extra=stats)
 
     if tool == "unlock":
         dest = new_out(sid, f"{stem}-unlocked.pdf")
@@ -384,10 +415,16 @@ def main() -> None:
 
     SESSIONS.mkdir(exist_ok=True)
     url = f"http://{HOST}:{PORT}"
-    print(f"\n  Bindery is local-only at {url}", flush=True)
-    print("  Bound to 127.0.0.1 — this PC, no internet, no upload.\n", flush=True)
+    print(f"\n  36x Bindery is local-only at {url}", flush=True)
+    if _packaged():
+        print("  Running the packaged .exe (frozen snapshot). Rebuild to pick up source edits.\n", flush=True)
+    else:
+        print("  Running from source. Refresh the browser after UI edits; restart after Python edits.\n", flush=True)
     threading.Timer(0.8, lambda: webbrowser.open(url)).start()
-    uvicorn.run(app, host=HOST, port=PORT, log_level="warning")
+    if _packaged():
+        uvicorn.run(app, host=HOST, port=PORT, log_level="warning")
+    else:
+        uvicorn.run("server:app", host=HOST, port=PORT, log_level="warning", reload=True)
 
 
 if __name__ == "__main__":

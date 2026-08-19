@@ -3,23 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Bindery — local PDF desk</title>
-  <link rel="stylesheet" href="/static/styles.css" />
+  <title>36x Bindery — private PDF desk</title>
+  <link rel="stylesheet" href="/static/styles.css?v=__ASSET_V__" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect fill='%23141c18' width='64' height='64' rx='12'/%3E%3Cpath fill='%23c9a56a' d='M16 14h32v4H16zm0 10h22v4H16zm0 10h32v4H16zm0 10h18v4H16z'/%3E%3C/svg%3E" />
 </head>
 <body>
   <div class="shell">
     <aside class="rail">
       <div class="brand">
-        <span class="mark">B</span>
+        <span class="mark">36</span>
         <div>
           <strong>Bindery</strong>
-          <small>Private desk · this PC only</small>
+          <small>36XFINANCE · this PC only</small>
         </div>
       </div>
       <nav class="tools" id="tools"></nav>
       <div class="rail-foot">
-        <p>Bound to <code>127.0.0.1</code>. Files never leave this machine. No account. No cloud.</p>
+        <p>Bound to <code>127.0.0.1</code>. Private documents never leave this machine. No account. No cloud.</p>
+        <p id="runHint"></p>
+        <p class="copy">© 2026 36XFINANCE. All rights reserved.</p>
       </div>
     </aside>
 
@@ -32,7 +34,7 @@
         </div>
         <div class="pills">
           <span class="pill live">Local only</span>
-          <span class="pill">Offline</span>
+          <span class="pill" id="buildPill">Offline</span>
         </div>
       </header>
 
@@ -69,6 +71,6 @@
       </section>
     </main>
   </div>
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=__ASSET_V__"></script>
 </body>
 </html>

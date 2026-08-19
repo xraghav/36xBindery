@@ -38,10 +38,11 @@ code { font-family: Consolas, "Courier New", monospace; color: var(--brass-2); }
 
 .brand { display: flex; gap: 12px; align-items: center; }
 .mark {
-  width: 42px; height: 42px; border-radius: 12px;
+  width: 46px; height: 42px; border-radius: 12px;
   display: grid; place-items: center;
   background: var(--brass); color: var(--ink);
-  font-family: var(--serif); font-size: 22px; font-weight: 700;
+  font-family: var(--serif); font-size: 15px; font-weight: 700;
+  letter-spacing: -0.04em;
 }
 .brand strong { display: block; font-family: var(--serif); font-size: 22px; letter-spacing: 0.04em; }
 .brand small { color: var(--mute); letter-spacing: 0.08em; text-transform: uppercase; font-size: 10px; }
@@ -61,6 +62,7 @@ code { font-family: Consolas, "Courier New", monospace; color: var(--brass-2); }
 .tools button.active em { color: #5d6b63; }
 
 .rail-foot { margin-top: auto; color: var(--mute); font-size: 12px; line-height: 1.5; }
+.rail-foot .copy { letter-spacing: 0.04em; color: #7d8b82; }
 
 .desk { padding: 36px 42px 64px; max-width: 1280px; }
 .top { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; }
@@ -171,6 +173,8 @@ textarea { min-height: 72px; resize: vertical; }
 .run:disabled { opacity: 0.45; cursor: default; }
 .status { font-size: 13px; color: var(--ok); }
 .status.bad { color: var(--danger); }
+.status.warn { color: var(--brass-2); }
+.pair { display: grid; grid-template-columns: 1fr 88px; gap: 8px; }
 .download {
   display: inline-block; margin-top: 10px; text-decoration: none; text-align: center; width: 100%;
   background: var(--paper); color: var(--ink); border-color: var(--paper);

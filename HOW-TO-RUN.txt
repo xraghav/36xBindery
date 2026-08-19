@@ -1,0 +1,15 @@
+36x Bindery — 36XFINANCE private PDF desk
+
+1. Unzip this whole folder. Do not pick Bindery.exe out by itself.
+2. Double-click Bindery.exe.
+3. It opens in its own window. Close the window to quit.
+
+Keep Bindery.exe and the _internal folder next to each other.
+
+Windows may say the app is unsigned. Choose More info → Run anyway if you trust the person who sent this.
+
+Private documents stay on this computer. Nothing is uploaded.
+
+© 2026 36XFINANCE. All rights reserved.
+https://www.36xfinance.com
+

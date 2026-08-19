@@ -3,3 +3,5 @@ uvicorn==0.34.2
 pymupdf==1.25.5
 pikepdf==9.8.1
 python-multipart==0.0.20
+Pillow==12.3.0
+pywebview==5.4

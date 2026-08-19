@@ -6,7 +6,7 @@ const TOOLS = [
   { id: "rotate", name: "Rotate", blurb: "Turn selected pages", kicker: "Turn", headline: "Rotate pages", lede: "Select pages in the filmstrip, or rotate the whole document." },
   { id: "drop", name: "Drop pages", blurb: "Remove selected leaves", kicker: "Trim", headline: "Delete pages", lede: "Select the pages to discard. The rest is saved as a new PDF." },
   { id: "reorder", name: "Reorder", blurb: "Shuffle page order", kicker: "Arrange", headline: "Restack the pages", lede: "Use the order field as a 1-based sequence covering every page once." },
-  { id: "compress", name: "Compress", blurb: "Deflate and clean", kicker: "Press", headline: "Make a tighter copy", lede: "Garbage-collect and deflate streams. Scanned image-heavy files may shrink less." },
+  { id: "compress", name: "Compress", blurb: "Fit a size ceiling", kicker: "Press", headline: "Fit a size ceiling", lede: "Leave the ceiling blank for a lossless clean. Set a size and Bindery uses the gentlest image pass that still fits." },
   { id: "watermark", name: "Watermark", blurb: "Stamp quiet overlay text", kicker: "Mark", headline: "Watermark every page", lede: "A centered overlay, local only. Use for DRAFT, CONFIDENTIAL, or a name." },
   { id: "text", name: "Extract text", blurb: "Plain text from each page", kicker: "Read", headline: "Lift the words out", lede: "Digital text only — not OCR. Scans without a text layer will be sparse." },
   { id: "images", name: "Extract images", blurb: "Embedded pictures as a zip", kicker: "Lift", headline: "Pull images from the file", lede: "Each embedded image is saved in a zip. Vector-only pages yield nothing." },
@@ -166,6 +166,17 @@ function renderFields() {
       <label>New order (every page once)</label>
       <input id="order" type="text" placeholder="3,1,2,4" />`);
   }
+  if (tool === "compress") {
+    bits.push(`
+      <label>Size ceiling (optional)</label>
+      <div class="pair">
+        <input id="targetSize" type="number" min="0.1" step="0.1" placeholder="e.g. 2" />
+        <select id="targetUnit">
+          <option value="MB" selected>MB</option>
+          <option value="KB">KB</option>
+        </select>
+      </div>`);
+  }
   if (tool === "lock") {
     bits.push(`
       <label>New password</label>
@@ -196,7 +207,7 @@ function hintFor(tool) {
     rotate: "If nothing is selected, every page turns.",
     drop: "Select pages to remove in the filmstrip.",
     reorder: "Example: 3,1,2 rewrites a 3-page file.",
-    compress: "Creates a cleaned copy. Original is untouched.",
+    compress: "Blank = lossless clean only. With a ceiling, photos are re-encoded from gentle to firmer until the copy fits. It will not drop below JPEG 70 / about 120 DPI.",
     watermark: "Visible overlay on every page of the copy.",
     text: "Downloads a .txt next to your other results.",
     images: "Downloads a zip of embedded bitmaps.",
@@ -282,6 +293,8 @@ async function run() {
       order: ($("order")?.value || "").split(/[,\s]+/).filter(Boolean).map(Number),
       new_password: $("newPassword")?.value || "",
       watermark: $("watermark")?.value || "",
+      target_size: $("targetSize")?.value || "",
+      target_unit: $("targetUnit")?.value || "MB",
       title: $("title")?.value || "",
       author: $("author")?.value || "",
       subject: $("subject")?.value || "",
@@ -294,10 +307,18 @@ async function run() {
     });
     let extra = "";
     if (result.bytes_before) extra = ` · ${fmtBytes(result.bytes_before)} → ${fmtBytes(result.bytes_after)}`;
+    if (result.target_bytes) {
+      extra += result.met_target
+        ? ` · under ${fmtBytes(result.target_bytes)}`
+        : ` · still over ${fmtBytes(result.target_bytes)}`;
+    }
+    if (result.jpeg_quality) extra += ` · JPEG ${result.jpeg_quality}${result.max_dpi ? ` / ${result.max_dpi} DPI` : ""}`;
     if (result.pages) extra = ` · ${result.pages} pages`;
     if (result.files) extra = ` · ${result.files} files in zip`;
     if (result.images) extra = ` · ${result.images} images`;
     status.textContent = `Ready: ${result.filename} (${fmtBytes(result.bytes)})${extra}`;
+    if (result.note) status.textContent += ` ${result.note}`;
+    if (result.met_target === false) status.className = "status warn";
     dl.hidden = false;
     dl.href = `/api/session/${state.sid}/download`;
     dl.download = result.filename;
@@ -344,3 +365,17 @@ renderHeadline();
 renderFields();
 wire();
 ensureSession().catch(showErr);
+api("/api/health").then((h) => {
+  const pill = $("buildPill");
+  const hint = $("runHint");
+  if (h.packaged) {
+    pill.textContent = "Packaged exe";
+    hint.textContent = "This is a frozen copy. For live edits, close it and run run.bat instead.";
+  } else if (h.app_window) {
+    pill.textContent = "App window";
+    hint.textContent = "Installed as a desktop app. Close the window to quit.";
+  } else {
+    pill.textContent = "From source";
+    hint.textContent = "Live project files. Refresh the page after interface edits.";
+  }
+}).catch(() => {});
