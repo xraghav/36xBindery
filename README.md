@@ -26,8 +26,8 @@ Windows may warn that the file is unsigned. Choose **More info → Run anyway** 
 You need [Python 3.10+](https://www.python.org/downloads/) once.
 
 ```powershell
-git clone https://github.com/REPLACE_OWNER/36x-bindery.git
-cd 36x-bindery
+git clone https://github.com/xraghav/36xBindery.git
+cd 36xBindery
 .\run.bat
 ```
 
