@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bindery — local PDF desk</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect fill='%23141c18' width='64' height='64' rx='12'/%3E%3Cpath fill='%23c9a56a' d='M16 14h32v4H16zm0 10h22v4H16zm0 10h32v4H16zm0 10h18v4H16z'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <div class="brand">
+        <span class="mark">B</span>
+        <div>
+          <strong>Bindery</strong>
+          <small>Private desk · this PC only</small>
+        </div>
+      </div>
+      <nav class="tools" id="tools"></nav>
+      <div class="rail-foot">
+        <p>Bound to <code>127.0.0.1</code>. Files never leave this machine. No account. No cloud.</p>
+      </div>
+    </aside>
+
+    <main class="desk">
+      <header class="top">
+        <div>
+          <p class="kicker" id="kicker">Gather</p>
+          <h1 id="headline">Drop PDFs on the desk</h1>
+          <p class="lede" id="lede">Merge, split, unlock, and finish documents without sending them anywhere.</p>
+        </div>
+        <div class="pills">
+          <span class="pill live">Local only</span>
+          <span class="pill">Offline</span>
+        </div>
+      </header>
+
+      <section class="well" id="well">
+        <input id="fileInput" type="file" accept="application/pdf,.pdf" multiple hidden />
+        <div class="well-inner">
+          <p class="well-title">Lay files here</p>
+          <p class="well-copy">PDF only. Processed in a temporary folder on this computer, then you download the result.</p>
+          <button type="button" class="ghost" id="browseBtn">Choose PDFs</button>
+        </div>
+        <ul class="folios" id="folios"></ul>
+      </section>
+
+      <section class="work">
+        <div class="film" id="filmWrap" hidden>
+          <div class="film-head">
+            <h2 id="filmTitle">Pages</h2>
+            <div class="film-actions">
+              <button type="button" class="tiny" id="selectAll">Select all</button>
+              <button type="button" class="tiny" id="selectNone">Clear</button>
+            </div>
+          </div>
+          <div class="thumbs" id="thumbs"></div>
+        </div>
+
+        <aside class="recipe" id="recipe">
+          <h2>Recipe</h2>
+          <div id="fields"></div>
+          <p class="hint" id="hint"></p>
+          <button type="button" class="run" id="runBtn">Run on this PC</button>
+          <p class="status" id="status" hidden></p>
+          <a class="download" id="downloadBtn" hidden>Download result</a>
+        </aside>
+      </section>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
