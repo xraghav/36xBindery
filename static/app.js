@@ -20,6 +20,8 @@ const state = {
   selected: new Set(),
   passwords: {},
   activeId: null,
+  appWindow: false,
+  lastFilename: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -319,10 +321,11 @@ async function run() {
     status.textContent = `Ready: ${result.filename} (${fmtBytes(result.bytes)})${extra}`;
     if (result.note) status.textContent += ` ${result.note}`;
     if (result.met_target === false) status.className = "status warn";
+    state.lastFilename = result.filename;
     dl.hidden = false;
     dl.href = `/api/session/${state.sid}/download`;
     dl.download = result.filename;
-    dl.textContent = `Download ${result.filename}`;
+    dl.textContent = state.appWindow ? `Save ${result.filename}` : `Download ${result.filename}`;
   } catch (err) {
     status.className = "status bad";
     status.textContent = err.message || String(err);
@@ -344,6 +347,11 @@ function wire() {
   });
   well.addEventListener("drop", (e) => addFiles(e.dataTransfer.files).catch(showErr));
   $("runBtn").onclick = () => run();
+  $("downloadBtn").onclick = (ev) => {
+    if (!state.appWindow) return;
+    ev.preventDefault();
+    saveFromAppWindow().catch(showErr);
+  };
   $("selectAll").onclick = () => {
     const file = activeFile();
     if (!file?.pages) return;
@@ -360,6 +368,34 @@ function showErr(err) {
   status.textContent = err.message || String(err);
 }
 
+async function saveFromAppWindow() {
+  const status = $("status");
+  status.hidden = false;
+  status.className = "status";
+  status.textContent = "Saving…";
+
+  // Prefer native Save As when the desktop bridge is ready.
+  if (window.pywebview?.api?.save_result) {
+    try {
+      const result = await window.pywebview.api.save_result(state.sid, state.lastFilename || "result.pdf");
+      if (result.cancelled) {
+        status.textContent = "Save cancelled.";
+        return;
+      }
+      if (result.ok) {
+        status.textContent = `Saved to ${result.path}`;
+        return;
+      }
+    } catch {
+      // Fall through to Downloads copy.
+    }
+  }
+
+  // Always-works fallback for the shortcut app: copy into Downloads.
+  const result = await api(`/api/session/${state.sid}/save-downloads`, { method: "POST" });
+  status.textContent = `Saved to ${result.path}`;
+}
+
 renderTools();
 renderHeadline();
 renderFields();
@@ -368,12 +404,13 @@ ensureSession().catch(showErr);
 api("/api/health").then((h) => {
   const pill = $("buildPill");
   const hint = $("runHint");
+  state.appWindow = !!h.app_window;
   if (h.packaged) {
     pill.textContent = "Packaged exe";
     hint.textContent = "This is a frozen copy. For live edits, close it and run run.bat instead.";
   } else if (h.app_window) {
     pill.textContent = "App window";
-    hint.textContent = "Installed as a desktop app. Close the window to quit.";
+    hint.textContent = "Installed as a desktop app. Use Save after a run — it opens a Save As dialog.";
   } else {
     pill.textContent = "From source";
     hint.textContent = "Live project files. Refresh the page after interface edits.";

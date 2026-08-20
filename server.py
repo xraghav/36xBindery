@@ -267,6 +267,33 @@ def download(sid: str):
     return FileResponse(path, filename=last["filename"], media_type=last["media"])
 
 
+@app.post("/api/session/{sid}/save-downloads")
+def save_downloads(sid: str):
+    """Reliable save for the desktop window when browser download is broken."""
+    rec = require_session(sid)
+    last = rec.get("last")
+    if not last:
+        raise HTTPException(404, "Nothing to download yet.")
+    src = Path(last["path"])
+    if not src.exists():
+        raise HTTPException(404, "The result file was cleared.")
+    downloads = Path.home() / "Downloads"
+    downloads.mkdir(parents=True, exist_ok=True)
+    name = Path(last.get("filename") or src.name).name
+    dest = downloads / name
+    if dest.exists():
+        stem, suffix = dest.stem, dest.suffix
+        n = 1
+        while True:
+            candidate = downloads / f"{stem} ({n}){suffix}"
+            if not candidate.exists():
+                dest = candidate
+                break
+            n += 1
+    shutil.copy2(src, dest)
+    return {"ok": True, "path": str(dest), "filename": dest.name}
+
+
 def _src(sid: str, fid: str) -> Path:
     return rec_path(sid) / "uploads" / f"{fid}.pdf"
 

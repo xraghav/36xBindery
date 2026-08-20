@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import ctypes
+import json
 import os
+import shutil
 import socket
 import sys
 import threading
@@ -64,9 +66,45 @@ def _start_server() -> QuietServer:
     raise RuntimeError("Bindery started but the window could not reach it.")
 
 
-def _icon_path() -> str | None:
-    icon = _root() / "static" / "bindery.ico"
-    return str(icon) if icon.exists() else None
+class BinderyApi:
+    """Native Save As — pywebview does not honor HTML download links."""
+
+    def __init__(self) -> None:
+        self.window = None
+
+    def save_result(self, session_id: str, suggested_name: str = "result.pdf") -> dict:
+        sid = "".join(ch for ch in (session_id or "") if ch.isalnum())
+        if not sid:
+            return {"ok": False, "error": "No session to save from."}
+        meta = SESSIONS / sid / "last.json"
+        if not meta.exists():
+            return {"ok": False, "error": "Nothing to download yet. Run a tool first."}
+        try:
+            last = json.loads(meta.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return {"ok": False, "error": "Could not read the last result."}
+        src = Path(last.get("path") or "")
+        if not src.exists():
+            return {"ok": False, "error": "The result file was cleared. Run the tool again."}
+        name = Path(suggested_name or last.get("filename") or src.name).name
+        if self.window is None:
+            return {"ok": False, "error": "Window is not ready."}
+        import webview
+
+        picked = self.window.create_file_dialog(
+            webview.SAVE_DIALOG,
+            directory=str(Path.home() / "Downloads"),
+            save_filename=name,
+            file_types=("PDF (*.pdf)", "ZIP (*.zip)", "Text (*.txt)", "All files (*.*)"),
+        )
+        if not picked:
+            return {"ok": False, "cancelled": True}
+        dest = Path(picked if isinstance(picked, str) else picked[0])
+        try:
+            shutil.copy2(src, dest)
+        except OSError as exc:
+            return {"ok": False, "error": f"Could not save the file: {exc}"}
+        return {"ok": True, "path": str(dest)}
 
 
 def main() -> None:
@@ -86,14 +124,17 @@ def main() -> None:
 
     import webview
 
-    webview.create_window(
+    api = BinderyApi()
+    window = webview.create_window(
         "36x Bindery",
         URL,
         width=1280,
         height=840,
         min_size=(900, 600),
         background_color="#121916",
+        js_api=api,
     )
+    api.window = window
     webview.start()
     if owned and server is not None:
         server.should_exit = True
